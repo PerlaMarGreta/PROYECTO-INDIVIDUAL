@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 import pandas as pd
+import os
 
-# Carga el dataset
-data = pd.read_parquet(r"Movies\dataclean.parquet")
+data = pd.read_parquet(os.path.join("Movies", "dataclean.parquet"))
 
 app = FastAPI()
 
