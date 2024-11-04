@@ -1,0 +1,13 @@
+# Ignorar el entorno virtual
+venv/
+
+# Ignorar archivos de caché de Python
+__pycache__/
+*.py[cod]
+
+
+Movies/credits.csv
+Movies/creditsfinal.csv
+Movies/df_final.csv
+Movies/movies_dataset.csv
+Movies/df_final_exported.csv
