@@ -2,9 +2,14 @@ from fastapi import FastAPI
 import pandas as pd
 
 # Carga el dataset
-data = pd.read_csv("Movies\dataclean.csv")
+data = pd.read_csv(r"Movies\dataclean.parquet")
 
 app = FastAPI()
+
+
+@app.get("/")
+def root():
+    return {"mensaje": "Bienvenido a la API de películas"}
 
 # 1. Cantidad de filmaciones por mes
 @app.get('/cantidad_filmaciones_mes/')
@@ -78,3 +83,15 @@ def get_director(nombre_director: str):
             "ganancia": row['revenue'] - row['budget']
         })
     return {"director": nombre_director, "peliculas": peliculas}
+
+
+#activar el entorno
+# .\venv\Scripts\activate
+
+#instalar 
+#uvicorn main:app --reload
+
+#Para ver la documentación interactiva de Swagger UI que te permite interactuar con los endpoints, ve a:
+
+#Swagger UI: http://127.0.0.1:8000/docs
+#Redoc: http://127.0.0.1:8000/redoc
