@@ -2,7 +2,7 @@ from fastapi import FastAPI
 import pandas as pd
 
 # Carga el dataset
-data = pd.read_csv(r"Movies\dataclean.parquet")
+data = pd.read_parquet(r"Movies\dataclean.parquet")
 
 app = FastAPI()
 
