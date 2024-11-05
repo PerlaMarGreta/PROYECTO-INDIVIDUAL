@@ -1,12 +1,19 @@
+
 from fastapi import FastAPI
 import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import MinMaxScaler
+import numpy as np
+from scipy.sparse import hstack
 import os
 
+# Cargar el dataset
 data = pd.read_parquet(os.path.join("Movies", "dataclean.parquet"))
 
 app = FastAPI()
 
-
+# Endpoint de bienvenida
 @app.get("/")
 def root():
     return {"mensaje": "Bienvenido a la API de películas"}
@@ -14,8 +21,11 @@ def root():
 # 1. Cantidad de filmaciones por mes
 @app.get('/cantidad_filmaciones_mes/')
 def cantidad_filmaciones_mes(mes: str):
-    meses = {'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04', 'mayo': '05', 'junio': '06',
-             'julio': '07', 'agosto': '08', 'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'}
+    meses = {
+        'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04', 
+        'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08', 
+        'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'
+    }
     mes_numero = meses.get(mes.lower())
     if not mes_numero:
         return {"error": "Mes inválido"}
@@ -25,73 +35,95 @@ def cantidad_filmaciones_mes(mes: str):
 # 2. Cantidad de filmaciones por día
 @app.get('/cantidad_filmaciones_dia/')
 def cantidad_filmaciones_dia(dia: str):
-    dias = {'lunes': 0, 'martes': 1, 'miércoles': 2, 'jueves': 3, 'viernes': 4, 'sábado': 5, 'domingo': 6}
+    dias = {
+        'lunes': 0, 'martes': 1, 'miércoles': 2, 'jueves': 3, 'viernes': 4, 'sábado': 5, 'domingo': 6
+    }
     dia_numero = dias.get(dia.lower())
     if dia_numero is None:
         return {"error": "Día inválido"}
-    data['release_day'] = pd.to_datetime(data['release_date'], errors='coerce').dt.dayofweek
-    cantidad = data[data['release_day'] == dia_numero].shape[0]
-    return {"mensaje": f"{cantidad} cantidad de películas fueron estrenadas en los días {dia}"}
+    cantidad = data[pd.to_datetime(data['release_date']).dt.dayofweek == dia_numero].shape[0]
+    return {"mensaje": f"{cantidad} cantidad de películas fueron estrenadas en el día {dia}"}
 
-# 3. Score por título
+# 3. Puntaje de una película por título
 @app.get('/score_titulo/')
 def score_titulo(titulo: str):
-    film = data[data['title'].str.lower() == titulo.lower()]
-    if film.empty:
+    pelicula = data[data['title'].str.lower() == titulo.lower()]
+    if pelicula.empty:
         return {"error": "Película no encontrada"}
-    año = film['release_year'].values[0]
-    score = film['popularity'].values[0]
-    return {"mensaje": f"La película {titulo} fue estrenada en el año {año} con un score de {score}"}
+    score = pelicula['vote_average'].values[0]
+    return {"mensaje": f"La película '{titulo}' tiene un puntaje de {score}"}
 
-# 4. Votos por título
+# 4. Votos de una película por título
 @app.get('/votos_titulo/')
 def votos_titulo(titulo: str):
-    film = data[data['title'].str.lower() == titulo.lower()]
-    if film.empty:
+    pelicula = data[data['title'].str.lower() == titulo.lower()]
+    if pelicula.empty:
         return {"error": "Película no encontrada"}
-    votos = film['vote_count'].values[0]
-    promedio_votos = film['vote_average'].values[0]
-    if votos < 2000:
-        return {"mensaje": "La película no cumple con la condición de tener al menos 2000 valoraciones"}
-    return {"mensaje": f"La película {titulo} cuenta con {votos} valoraciones, con un promedio de {promedio_votos}"}
+    votos = pelicula['vote_count'].values[0]
+    return {"mensaje": f"La película '{titulo}' tiene un total de {votos} votos"}
 
-# 5. Información sobre el actor
-@app.get('/get_actor/')
-def get_actor(nombre_actor: str):
-    actor_films = data[data['cast_name'].str.contains(nombre_actor, case=False, na=False)]
-    if actor_films.empty:
+# 5. Información de un actor
+@app.get('/actor/{nombre_actor}')
+def actor_info(nombre_actor: str):
+    actor_data = data[data['cast_name'].str.contains(nombre_actor, case=False, na=False)]
+    if actor_data.empty:
         return {"error": "Actor no encontrado"}
-    retorno_total = actor_films['return'].sum()
-    cantidad_peliculas = actor_films.shape[0]
-    promedio_retorno = retorno_total / cantidad_peliculas
-    return {"mensaje": f"El actor {nombre_actor} ha participado en {cantidad_peliculas} películas, "
-                       f"con un retorno total de {retorno_total} y un promedio de {promedio_retorno} por película"}
+    total_peliculas = actor_data.shape[0]
+    retorno_total = actor_data['return'].sum()
+    return {
+        "mensaje": f"El actor {nombre_actor} ha participado en {total_peliculas} películas y el retorno total es {retorno_total}"
+    }
 
-# 6. Información sobre el director
-@app.get('/get_director/')
-def get_director(nombre_director: str):
-    director_films = data[data['crew_name'].str.contains(nombre_director, case=False, na=False) & (data['crew_job'] == 'Director')]
-    if director_films.empty:
+# 6. Información de un director
+@app.get('/director/{nombre_director}')
+def director_info(nombre_director: str):
+    director_data = data[data['crew_name'].str.contains(nombre_director, case=False, na=False)]
+    if director_data.empty:
         return {"error": "Director no encontrado"}
-    peliculas = []
-    for _, row in director_films.iterrows():
-        peliculas.append({
-            "titulo": row['title'],
-            "fecha_lanzamiento": row['release_date'],
-            "retorno_individual": row['return'],
-            "costo": row['budget'],
-            "ganancia": row['revenue'] - row['budget']
-        })
-    return {"director": nombre_director, "peliculas": peliculas}
+    cantidad_peliculas = director_data.shape[0]
+    retorno_total = director_data['return'].sum()
+    return {
+        "mensaje": f"El director {nombre_director} ha dirigido {cantidad_peliculas} películas y el retorno total es {retorno_total}"
+    }
 
+# 7. Sistema de Recomendación de Películas
+# Configuración del sistema de recomendación
+tfidf_vectorizer = TfidfVectorizer(stop_words='english', max_features=5000)
+tfidf_matrix = tfidf_vectorizer.fit_transform(data['overview'].fillna(''))
 
-#activar el entorno
-# .\venv\Scripts\activate
+# Vectorización de `genres_name` (One-Hot Encoding)
+genres_dummies = data['genres_name'].str.get_dummies(sep=',')
+data = pd.concat([data, genres_dummies], axis=1)
 
-#instalar 
-#uvicorn main:app --reload
+# Normalización de Características Numéricas
+scaler = MinMaxScaler()
+data[['popularity', 'vote_average', 'release_year']] = scaler.fit_transform(
+    data[['popularity', 'vote_average', 'release_year']])
 
-#Para ver la documentación interactiva de Swagger UI que te permite interactuar con los endpoints, ve a:
+# Concatenar todas las características en una matriz esparsa y convertir a CSR
+numeric_features = data[['popularity', 'vote_average', 'release_year']].values
+feature_matrix = hstack([tfidf_matrix, genres_dummies.values, numeric_features]).tocsr()
 
-#Swagger UI: http://127.0.0.1:8000/docs
-#Redoc: http://127.0.0.1:8000/redoc
+# Función de recomendación
+def get_recommendations(title):
+    try:
+        # Buscar el índice de la película solicitada
+        idx = data[data['title'].str.lower() == title.lower()].index[0]
+        
+        # Calcular similitud solo para la película solicitada
+        sim_scores = cosine_similarity(feature_matrix[idx], feature_matrix)[0]
+        
+        # Ordenar películas por similitud y obtener las 5 mejores recomendaciones
+        sim_scores = list(enumerate(sim_scores))
+        sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+        sim_indices = [i[0] for i in sim_scores[1:6]]
+        
+        return data['title'].iloc[sim_indices].tolist()
+    except IndexError:
+        return ["Película no encontrada"]
+
+# Endpoint de recomendación
+@app.get("/recomendacion/{titulo}")
+def recomendacion(titulo: str):
+    recommendations = get_recommendations(titulo)
+    return {"recommendations": recommendations}
