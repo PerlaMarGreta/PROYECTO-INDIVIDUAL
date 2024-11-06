@@ -88,7 +88,7 @@ def director_info(nombre_director: str):
 
 # 7. Sistema de Recomendación de Películas
 # Configuración del sistema de recomendación
-tfidf_vectorizer = TfidfVectorizer(stop_words='english', max_features=5000)
+tfidf_vectorizer = TfidfVectorizer(stop_words='english', max_features=1000)
 tfidf_matrix = tfidf_vectorizer.fit_transform(data['overview'].fillna(''))
 
 # Vectorización de `genres_name` (One-Hot Encoding)
